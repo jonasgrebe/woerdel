@@ -1,0 +1,48 @@
+{
+  "provider": "Google Fonts",
+  "downloaded": "2026-10-02",
+  "assets": [
+    {
+      "file": "dm-sans-latin-ext.woff2",
+      "family": "DM Sans",
+      "subset": "latin-ext",
+      "source": "https://fonts.gstatic.com/s/dmsans/v17/rP2Yp2ywxg089UriI5-g4vlH9VoD8Cmcqbu6-K6z9mXgjU0.woff2",
+      "bytes": 18192,
+      "sha256": "219b02c7d8884817d3d6ad4c8771f2c000ce4c5669a67ef4e2e5617ffa25c4cc"
+    },
+    {
+      "file": "dm-sans-latin.woff2",
+      "family": "DM Sans",
+      "subset": "latin",
+      "source": "https://fonts.gstatic.com/s/dmsans/v17/rP2Yp2ywxg089UriI5-g4vlH9VoD8Cmcqbu0-K6z9mXg.woff2",
+      "bytes": 36980,
+      "sha256": "468d56b6b25b05b70190b6c233d773f6f1770e8579827ce022a57f03fa8002fb"
+    },
+    {
+      "file": "space-grotesk-latin-ext.woff2",
+      "family": "Space Grotesk",
+      "subset": "latin-ext",
+      "source": "https://fonts.gstatic.com/s/spacegrotesk/v22/V8mDoQDjQSkFtoMM3T6r8E7mPb94C_k3HqUtEw.woff2",
+      "bytes": 18924,
+      "sha256": "054c266fbb441ee059365dba0885d206f67ca05b375de869b88e02ebfccc9b9d"
+    },
+    {
+      "file": "space-grotesk-latin.woff2",
+      "family": "Space Grotesk",
+      "subset": "latin",
+      "source": "https://fonts.gstatic.com/s/spacegrotesk/v22/V8mDoQDjQSkFtoMM3T6r8E7mPbF4C_k3HqU.woff2",
+      "bytes": 22320,
+      "sha256": "a0d054c4af557de20afd6ca59f47ab353bcaec49c63ff04b6c9d39d0f8910557"
+    }
+  ],
+  "licenses": [
+    {
+      "file": "dm-sans-OFL.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/dmsans/OFL.txt"
+    },
+    {
+      "file": "space-grotesk-OFL.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/spacegrotesk/OFL.txt"
+    }
+  ]
+}
