@@ -21,6 +21,7 @@ jobs:
           node --check dist/app.js
           node --check dist/engine.js
           node --check dist/lexicon.js
+          node --check dist/sharing.js
           node --test tests/*.test.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4

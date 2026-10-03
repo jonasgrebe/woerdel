@@ -1,5 +1,6 @@
 import {loadLexicon} from './lexicon.js';
-import { VERSION, MODES, SPRINT_MS, setWordValidator, normalizeWord, normalizeSeed, berlinDate, dailyConfig, validateConfig, codeFor, parseCode, challengeURL, targetsFor, scoreGuess, newGame, solvedAt, outcome, guessError, restoreGame, shareText } from './engine.js';
+import {whatsappURL, resultImage} from './sharing.js';
+import { VERSION, CUSTOM_VERSION, attemptOptions, createCustomConfig, keyboardStates, MODES, SPRINT_MS, setWordValidator, normalizeWord, normalizeSeed, berlinDate, dailyConfig, validateConfig, codeFor, parseCode, challengeURL, targetsFor, scoreGuess, newGame, solvedAt, outcome, guessError, restoreGame, shareText } from './engine.js';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const states={correct:'richtiger Platz',present:'falscher Platz',absent:'nicht enthalten'}, symbols={correct:'✓',present:'↔',absent:'×'};
 let storageWarning=false;
@@ -9,6 +10,7 @@ let prefs={theme:'dark',sound:false,symbols:false,motion:matchMedia('(prefers-re
 if(!['light','dark'].includes(prefs.theme))prefs.theme=prefs.theme==='paper'?'light':'dark';
 let lexiconState='loading';
 let config=dailyConfig(),game,targets,draft,activeBoard=0,locked=false,pending=null,toastTimeout,animationTimeout,resultTimeout,audioContext;
+let draftKind='daily',draftWords=['',''],shareImageFile=null,shareImageURL=null,shareImageToken=0;
 let initialError='';
 try{const encoded=new URLSearchParams(location.hash.slice(1)).get('spiel');if(encoded)config=parseCode(encoded);}catch(error){initialError=error.message;}
 function currentKey(){return 'wortwerk:game:'+codeFor(config);}
@@ -20,24 +22,43 @@ function openDialog(id){const el=$(id);if(!el.open)el.showModal();}
 function applyPrefs(){document.documentElement.dataset.theme=prefs.theme;document.documentElement.classList.toggle('symbols',prefs.symbols);document.documentElement.classList.toggle('reduced-motion',prefs.motion);$('#sound-setting').checked=prefs.sound;$('#contrast-setting').checked=prefs.symbols;$('#motion-setting').checked=prefs.motion;$$('[data-theme-choice]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.themeChoice===prefs.theme)));$('meta[name=theme-color]').content={dark:'#101e17',light:'#f5f3e9'}[prefs.theme];}
 function sound(type){if(!prefs.sound)return;try{audioContext??=new (window.AudioContext||window.webkitAudioContext)();audioContext.resume();const osc=audioContext.createOscillator(),gain=audioContext.createGain(),now=audioContext.currentTime;osc.type='sine';osc.frequency.setValueAtTime(type==='win'?523:type==='submit'?330:220,now);if(type==='win')osc.frequency.exponentialRampToValueAtTime(1046,now+.22);gain.gain.setValueAtTime(.025,now);gain.gain.exponentialRampToValueAtTime(.0001,now+.22);osc.connect(gain);gain.connect(audioContext.destination);osc.start(now);osc.stop(now+.24);}catch{}}
 function randomSeed(){const bytes=new Uint8Array(8);crypto.getRandomValues(bytes);return [...bytes].map(v=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[v%32]).join('');}
-function restoreDraft(){draft={...config};renderConfig();}
+function restoreDraft(){
+  const own=config.version===CUSTOM_VERSION;
+  draft={version:VERSION,mode:config.mode,length:config.length,attempts:config.attempts,hard:config.hard,daily:config.daily,seed:own?randomSeed():config.seed};
+  draftKind=own?'own':config.daily?'daily':'seed';draftWords=['',''];renderConfig();
+}
 function renderConfig(){
-  $('#daily-mode').classList.toggle('active',draft.daily);$('#daily-mode').setAttribute('aria-pressed',String(draft.daily));$('#custom-mode').classList.toggle('active',!draft.daily);$('#custom-mode').setAttribute('aria-pressed',String(!draft.daily));
+  const own=draftKind==='own';
+  for(const [id,kind] of [['daily-mode','daily'],['custom-mode','seed'],['own-mode','own']]){const button=$('#'+id);button.classList.toggle('active',draftKind===kind);button.setAttribute('aria-pressed',String(draftKind===kind));}
   $('#game-type').value=draft.mode;
   $('#mode-description').textContent={classic:'Ein Wort. Jeder Versuch bringt dich näher.',duet:'Zwei Wörter. Jeder Versuch zählt für beide.',sprint:'120 Sekunden. Die Uhr startet mit dem ersten Buchstaben.'}[draft.mode];
+  $('#length-field').hidden=own;
   $$('[data-length]').forEach(b=>{b.classList.toggle('selected',Number(b.dataset.length)===draft.length);b.setAttribute('aria-pressed',String(Number(b.dataset.length)===draft.length));});
-  const options=draft.mode==='duet'?[7,8,9]:[5,6,7];
+  const options=attemptOptions(draft.mode);
   if(!options.includes(draft.attempts))draft.attempts=draft.mode==='duet'?8:6;
-  $('#attempt-control').innerHTML=options.map(n=>`<button type="button" data-attempts="${n}" class="${n===draft.attempts?'selected':''}" aria-pressed="${n===draft.attempts}">${n}</button>`).join('');
+  $('#attempt-control').replaceChildren(...options.map(n=>new Option(String(n)+(n===(draft.mode==='duet'?8:6)?' · Standard':''),String(n),false,n===draft.attempts)));
+  $('#attempt-hint').textContent=(draft.mode==='duet'?'2':'1')+' bis 15 Versuche · Standard: '+(draft.mode==='duet'?'8':'6');
   if(draft.mode==='duet')draft.hard=false;
   $('#hard-mode').disabled=draft.mode==='duet';$('#hard-mode').checked=draft.hard;
   $('#hard-mode').closest('label').querySelector('small').textContent=draft.mode==='duet'?'Im Doppelpack nicht kombinierbar':'Alle Hinweise weiterverwenden';
+  $('#seed-fields').hidden=own;$('#own-word-fields').hidden=!own;$('#second-word-field').hidden=draft.mode!=='duet';
+  $('#target-word').value=draftWords[0];$('#target-word-2').value=draftWords[1];
+  $('#target-hint').textContent=draft.mode==='duet'?'Zwei verschiedene Wörter mit jeweils 4–8 Buchstaben und gleicher Länge. Auch Namen sind möglich.':'4–8 Buchstaben, auch Namen. Ä, Ö, Ü und ẞ zählen einzeln.';
   $('#seed-input').value=draft.seed;$('#seed-input').readOnly=draft.daily;
   $('#seed-caption').textContent=draft.daily?'NEU UM 00:00 UHR':'DASSELBE WORT FÜR ALLE';
-  $('#config-footnote').textContent=draft.daily?'Täglich neu. Nach deutscher Zeit.':'Seed + Regeln = dasselbe Rätsel.';
-  let same=false;try{same=codeFor(draft)===codeFor(config);}catch{}
-  $('#start-game').lastChild.textContent=same?'Spiel läuft':'Spiel starten';
+  $('#config-footnote').textContent=own?'Erstelle das Rätsel und teile den Spiel-Link.':draft.daily?'Täglich neu. Nach deutscher Zeit.':'Seed + Regeln = dasselbe Rätsel.';
+  let same=false;try{same=!own&&codeFor(draft)===codeFor(config);}catch{}
+  $('#start-game').lastChild.textContent=own?'Rätsel erstellen':same?'Spiel läuft':'Spiel starten';
   $('#seed-error').textContent='';
+}
+function keepCurrentRowVisible(){
+  const viewport=$('#boards-scroll');
+  if(config.attempts<=8){viewport.scrollTop=0;return;}
+  const rows=viewport.querySelectorAll('.board-unit')[activeBoard]?.querySelectorAll('.board-row');
+  const row=rows?.[Math.min(game.guesses.length,config.attempts-1)];if(!row)return;
+  const box=viewport.getBoundingClientRect(),rect=row.getBoundingClientRect();
+  if(rect.bottom>box.bottom)viewport.scrollTop+=rect.bottom-box.bottom+8;
+  else if(rect.top<box.top)viewport.scrollTop-=box.top-rect.top+8;
 }
 function renderBoards(reveal=false,pop=false){
   const solved=solvedAt(game,targets), ended=outcome(game,config)!=='playing';
@@ -53,27 +74,43 @@ function renderBoards(reveal=false,pop=false){
         return `<div class="tile${state?' '+state:letter?' filled':''}${reveal&&r===game.guesses.length-1&&previous?' reveal':''}${pop&&current&&i===word.length-1?' pop':''}" style="--i:${i}" aria-label="${label}">${letter}${state?`<span class="status-symbol" aria-hidden="true">${symbols[state]}</span>`:''}</div>`;
       }).join('')+'</div>';
     }
-    return `<div class="board-unit">${config.mode==='duet'?`<div class="board-label${done?' solved':''}"><span>WORT ${n+1}${done?' ✓':''}</span><button data-board="${n}" aria-label="Tastaturhinweise für Wort ${n+1}" aria-pressed="${n===activeBoard}">TASTATUR</button></div>`:''}<div class="board" style="--letters:${config.length}" role="group" aria-label="Wort ${n+1}">${rows}</div></div>`;
+    return `<div class="board-unit">${config.mode==='duet'?`<div class="board-label${done?' solved':''}"><span>WORT ${n+1}${done?' ✓':''}</span><span class="board-key-side">${n===0?'LINKS':'RECHTS'}</span></div>`:''}<div class="board" style="--letters:${config.length}" role="group" aria-label="Wort ${n+1}">${rows}</div></div>`;
   }).join('');
   $('#boards').className=config.mode==='duet'?'duet-boards':'';$('#boards').innerHTML=html;
   $('#spiel').classList.toggle('duet',config.mode==='duet');$('#spiel').classList.toggle('long-word',config.length>=7);
   $('#attempt-count').textContent=ended?`${game.guesses.length} / ${config.attempts} VERSUCHE`:`VERSUCH ${game.guesses.length+1} / ${config.attempts}`;
   $('#active-rules').textContent=`${config.length} Buchstaben · ${config.attempts} Versuche${config.hard?' · Knobelmodus':''}`;
-  $('#game-mode').textContent=(config.daily?'TAGESWORT':'FREIES SPIEL')+' · '+MODES[config.mode].toUpperCase();
+  $('#game-mode').textContent=(config.version===CUSTOM_VERSION?'EIGENES RÄTSEL':config.daily?'TAGESWORT':'FREIES SPIEL')+' · '+MODES[config.mode].toUpperCase();
   $('#result-reopen').hidden=!ended;$('#spiel').classList.toggle('finished',ended);
-  $('#keyboard-note').hidden=config.mode!=='duet';$('#keyboard-note').textContent=`Tastatur zeigt die Hinweise für Wort ${activeBoard+1}.`;
+  $('#keyboard-note').hidden=config.mode!=='duet';$('#keyboard-note').textContent='Jede Taste: links Wort 1 · rechts Wort 2';
   $('#timer').hidden=config.mode!=='sprint';$('#timer-track').hidden=config.mode!=='sprint';
-  updateKeyboard();updateTimer();
+  $('#spiel').classList.toggle('extended-game',config.attempts>8);$('#board-scroll-hint').hidden=config.attempts<=8;$('#boards-scroll').tabIndex=config.attempts>8?0:-1;
+  updateKeyboard();updateTimer();keepCurrentRowVisible();
 }
-function buildKeyboard(){const rows=['QWERTZUIOPÜ','ASDFGHJKLÖÄ','YXCVBNMẞ'];$('#keyboard').innerHTML=rows.map((row,i)=>`<div class="key-row">${i===2?'<button class="key wide submit" data-key="Enter" aria-label="Wort prüfen">Prüfen</button>':''}${[...row].map(c=>`<button class="key" data-key="${c}" aria-label="${c}">${c}</button>`).join('')}${i===2?'<button class="key wide" data-key="Backspace" aria-label="Buchstaben löschen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5-6 7 6 7h13V5Z M11 9l6 6m0-6-6 6"/></svg></button>':''}</div>`).join('');}
+function buildKeyboard(){const rows=['QWERTZUIOPÜ','ASDFGHJKLÖÄ','YXCVBNMẞ'];$('#keyboard').innerHTML=rows.map((row,i)=>`<div class="key-row">${i===2?'<button class="key wide submit" data-key="Enter" aria-label="Wort prüfen">Prüfen</button>':''}${[...row].map(c=>`<button class="key letter-key" data-key="${c}" aria-label="${c}"><span class="key-letter">${c}</span><span class="key-excluded" aria-hidden="true">×</span><span class="key-duet-mark left" aria-hidden="true"></span><span class="key-duet-mark right" aria-hidden="true"></span></button>`).join('')}${i===2?'<button class="key wide" data-key="Backspace" aria-label="Buchstaben löschen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5-6 7 6 7h13V5Z M11 9l6 6m0-6-6 6"/></svg></button>':''}</div>`).join('');}
 function updateKeyboard(){
-  const rank={absent:1,present:2,correct:3},letters={},target=targets[activeBoard],stop=game.guesses.indexOf(target);
-  game.guesses.slice(0,stop<0?undefined:stop+1).forEach(g=>scoreGuess(g,target).forEach((s,i)=>{if((rank[letters[g[i]]]||0)<rank[s])letters[g[i]]=s;}));
-  $$('.key').forEach(b=>{b.classList.remove('correct','present','absent');const key=b.dataset.key;if(letters[key])b.classList.add(letters[key]);if(key.length===1)b.setAttribute('aria-label',key+(letters[key]?', '+states[letters[key]]:''));b.disabled=lexiconState!=='ready'||outcome(game,config)!=='playing';});
+  const maps=keyboardStates(game,config),duet=config.mode==='duet',ended=outcome(game,config)!=='playing';
+  $$('.key').forEach(b=>{
+    b.classList.remove('correct','present','absent','excluded-both');const key=b.dataset.key;
+    if(key.length===1){
+      const first=maps[0][key],second=maps[1]?.[key];
+      if(duet){
+        b.dataset.state1=first||'unknown';b.dataset.state2=second||'unknown';
+        b.classList.toggle('excluded-both',first==='absent'&&second==='absent');
+        b.querySelector('.key-duet-mark.left').textContent=symbols[first]||'';b.querySelector('.key-duet-mark.right').textContent=symbols[second]||'';
+        b.setAttribute('aria-label',key+', Wort 1: '+(states[first]||'noch nicht geprüft')+', Wort 2: '+(states[second]||'noch nicht geprüft'));
+      }else{
+        delete b.dataset.state1;delete b.dataset.state2;
+        if(first)b.classList.add(first);b.setAttribute('aria-label',key+(first?', '+states[first]:''));
+      }
+      b.title=b.getAttribute('aria-label');
+    }
+    b.disabled=lexiconState!=='ready'||ended;
+  });
 }
 function initialMessage(){if(outcome(game,config)==='won')message('Wort für Wort. Geschafft.','success');else if(outcome(game,config)==='lost')message(game.reason==='time'?'Die Zeit ist um. Dein nächstes Aha wartet.':'Für heute ausgeknobelt. Das nächste Wort wartet.');else if(config.mode==='sprint'&&game.startedAt===null)message('Bereit? Mit dem ersten Buchstaben läuft die Uhr.');else if(game.guesses.length)message('Dein Spiel ist gespeichert. Knoble weiter.');else message(config.mode==='duet'?'Zwei Wörter. Ein erster Gedanke.':'Ein guter Anfang? Dein erstes Wort.');}
 function activate(c,{changeURL=true}={}){
-  clearTimeout(animationTimeout);clearTimeout(resultTimeout);locked=false;config=validateConfig(c);targets=targetsFor(config);activeBoard=0;
+  clearTimeout(animationTimeout);clearTimeout(resultTimeout);locked=false;shareImageFile=null;shareImageToken++;if(shareImageURL)URL.revokeObjectURL(shareImageURL);shareImageURL=null;$('#result-download').hidden=true;$('#result-download').removeAttribute('href');config=validateConfig(c);targets=targetsFor(config);activeBoard=0;
   game=lexiconState==='ready'?restoreGame(load(currentKey()),config):newGame(config);
   if(config.mode==='duet'&&game.guesses.includes(targets[0])&&!game.guesses.includes(targets[1]))activeBoard=1;
   if(changeURL)history.replaceState(null,'',challengeURL(config,location.href));
@@ -120,9 +157,29 @@ function showResult(){
   $('#result-description').textContent=won?`${targets.length===2?'Beide Wörter':'Dein Wort'} in ${game.guesses.length} ${game.guesses.length===1?'Versuch':'Versuchen'}. ${config.mode==='sprint'?'Und die Uhr hat das Nachsehen.':'Zeit für eine kleine Siegerpause.'}`:game.reason==='time'?'120 Sekunden sind um. Das nächste Wort gehört dir.':'Manche Wörter verstecken sich einfach gut. Weiter geht’s beim nächsten.';
   $('#result-answer').textContent=won?targets.join(' · '):'';$('#result-answer').hidden=!won;$('.answer-label').hidden=!won;
   $('#result-grid').innerHTML=targets.map((t,n)=>`<div class="mini-board" aria-label="Wort ${n+1}">${game.guesses.slice(0,solved[n]<0?undefined:solved[n]+1).map(g=>`<div class="mini-row">${scoreGuess(g,t).map(s=>`<i class="mini-tile ${s}" aria-label="${states[s]}"></i>`).join('')}</div>`).join('')}</div>`).join('');
-  $('#result-meta').textContent=`${MODES[config.mode]} · ${config.length} Buchstaben · ${config.hard?'Knobelmodus · ':''}#${config.seed}`;
-  $('#whatsapp-share').href='https://wa.me/?text='+encodeURIComponent(shareText(game,config,location.href));
+  $('#result-meta').textContent=`${MODES[config.mode]} · ${config.length} Buchstaben · ${config.hard?'Knobelmodus · ':''}${config.version===CUSTOM_VERSION?'Eigenes Rätsel':'#'+config.seed}`;
+  $('#whatsapp-share').href=whatsappURL(game,config,location.href);
+  prepareResultImage();
   openDialog('#result-dialog');
+}
+async function prepareResultImage(){
+  const token=++shareImageToken,button=$('#result-image');shareImageFile=null;button.disabled=true;button.textContent='Bild wird vorbereitet …';$('#result-download').hidden=true;if(shareImageURL)URL.revokeObjectURL(shareImageURL);shareImageURL=null;
+  try{
+    const blob=await resultImage(game,config,location.href);if(token!==shareImageToken)return;
+    shareImageFile=new File([blob],'woerdel-ergebnis.png',{type:'image/png'});
+    shareImageURL=URL.createObjectURL(blob);$('#result-download').href=shareImageURL;$('#result-download').hidden=!navigator.canShare?.({files:[shareImageFile]});
+    button.textContent=navigator.canShare?.({files:[shareImageFile]})?'Raster als Bild teilen':'Raster als Bild speichern';
+  }catch{if(token===shareImageToken)button.textContent='Bild erneut vorbereiten';}
+  finally{if(token===shareImageToken)button.disabled=false;}
+}
+async function shareResultImage(){
+  if(!shareImageFile){await prepareResultImage();return;}
+  if(navigator.canShare?.({files:[shareImageFile]})){
+    try{await navigator.share({files:[shareImageFile],title:'Wördel',text:shareText(game,config,location.href)});}
+    catch(error){if(error.name!=='AbortError')toast('Das Bild konnte nicht geteilt werden. Bitte versuche es erneut.');}
+  }else{
+    $('#result-download').click();toast('Das Raster wurde als Bild gespeichert.');
+  }
 }
 async function copy(text,success){try{if(!navigator.clipboard?.writeText)throw new Error();await navigator.clipboard.writeText(text);toast(success);}catch{closeDialogs();$('#copy-text').value=text;openDialog('#copy-dialog');$('#copy-text').focus();$('#copy-text').select();}}
 function sharingNote(){if(['localhost','127.0.0.1','[::1]'].includes(location.hostname))toast('Lokal kopiert. Für Freunde wird der Link nach Veröffentlichung erreichbar.');}
@@ -130,18 +187,27 @@ $('#spiel').tabIndex=-1;
 $('.skip-link').addEventListener('click',e=>{e.preventDefault();focusGame();});
 buildKeyboard();applyPrefs();activate(config);if(initialError)toast(initialError+' Das Tageswort ist bereit.');
 $('#keyboard').addEventListener('click',e=>{const key=e.target.closest('[data-key]');if(key){inputKey(key.dataset.key);$('#spiel').focus({preventScroll:true});}});
-$('#boards').addEventListener('click',e=>{const b=e.target.closest('[data-board]');if(b){activeBoard=Number(b.dataset.board);renderBoards();}});
 document.addEventListener('keydown',e=>{if(e.ctrlKey||e.metaKey||e.altKey||e.isComposing||e.target.closest('input,textarea,select,dialog'))return;if(['Enter',' '].includes(e.key)&&e.target.closest('button,a'))return;if(e.key==='Enter'||e.key==='Backspace'||/^[a-zA-ZäöüÄÖÜßẞ]$/.test(e.key)){e.preventDefault();inputKey(e.key);$('#spiel').focus({preventScroll:true});}});
 document.addEventListener('paste',e=>{if(e.target.closest('input,textarea,dialog'))return;const word=normalizeWord(e.clipboardData.getData('text').trim());if(/^[A-ZÄÖÜẞ]+$/.test(word)){e.preventDefault();[...word].forEach(inputKey);}});
 $('#length-control').addEventListener('click',e=>{const b=e.target.closest('[data-length]');if(b){draft.length=Number(b.dataset.length);renderConfig();}});
-$('#attempt-control').addEventListener('click',e=>{const b=e.target.closest('[data-attempts]');if(b){draft.attempts=Number(b.dataset.attempts);renderConfig();}});
-$('#game-type').addEventListener('change',e=>{draft.mode=e.target.value;draft.attempts=draft.mode==='duet'?8:6;renderConfig();});
+$('#attempt-control').addEventListener('change',e=>{draft.attempts=Number(e.target.value);renderConfig();});
+$('#game-type').addEventListener('change',e=>{draft.mode=e.target.value;renderConfig();});
 $('#hard-mode').addEventListener('change',e=>{draft.hard=e.target.checked;renderConfig();});
-$('#daily-mode').addEventListener('click',()=>{draft.daily=true;draft.seed=berlinDate();renderConfig();});
-$('#custom-mode').addEventListener('click',()=>{if(draft.daily){draft.daily=false;draft.seed=randomSeed();}renderConfig();});
-$('#random-seed').addEventListener('click',()=>{draft.daily=false;draft.seed=randomSeed();renderConfig();});
+$('#daily-mode').addEventListener('click',()=>{draftKind='daily';draft.daily=true;draft.seed=berlinDate();renderConfig();});
+$('#custom-mode').addEventListener('click',()=>{if(draftKind!=='seed')draft.seed=randomSeed();draftKind='seed';draft.daily=false;renderConfig();});
+$('#own-mode').addEventListener('click',()=>{if(draftKind!=='own')draft.seed=randomSeed();draftKind='own';draft.daily=false;renderConfig();});
+for(const [i,id] of ['target-word','target-word-2'].entries())$('#'+id).addEventListener('input',e=>{draftWords[i]=e.target.value;$('#seed-error').textContent='';});
+$('#random-seed').addEventListener('click',()=>{draftKind='seed';draft.daily=false;draft.seed=randomSeed();renderConfig();});
 $('#seed-input').addEventListener('input',e=>{draft.seed=normalizeSeed(e.target.value);$('#seed-error').textContent='';$('#start-game').lastChild.textContent='Spiel starten';});
-$('#config-form').addEventListener('submit',e=>{e.preventDefault();try{draft.seed=normalizeSeed($('#seed-input').value);const c=validateConfig(draft);requestStart(c);}catch{$('#seed-error').textContent='Bitte 1–32 Buchstaben, Zahlen oder Bindestriche eingeben.';$('#seed-input').focus();}});
+$('#config-form').addEventListener('submit',e=>{
+  e.preventDefault();
+  try{
+    const own=draftKind==='own';
+    if(!own)draft.seed=normalizeSeed($('#seed-input').value);
+    const c=own?createCustomConfig({mode:draft.mode,attempts:draft.attempts,hard:draft.hard,seed:draft.seed,words:draftWords.slice(0,draft.mode==='duet'?2:1)}):validateConfig(draft);
+    requestStart(c);
+  }catch(error){$('#seed-error').textContent=draftKind==='own'?error.message:'Bitte 1–32 Buchstaben, Zahlen oder Bindestriche eingeben.';$(draftKind==='own'?'#target-word':'#seed-input').focus();}
+});
 $('#confirm-new').addEventListener('click',()=>{if(pending){const c=pending;pending=null;activate(c);focusGame();}});
 $('#config-open').addEventListener('click',()=>{restoreDraft();openDialog('#config-dialog');});
 for(const name of ['help','settings','privacy'])$(`#${name}-open`).addEventListener('click',()=>openDialog(`#${name}-dialog`));
@@ -151,9 +217,10 @@ $$('dialog').forEach(dialog=>dialog.addEventListener('click',e=>{if(e.target===d
 $$('[data-theme-choice]').forEach(b=>b.addEventListener('click',()=>{prefs.theme=b.dataset.themeChoice;applyPrefs();save('wortwerk:preferences',prefs);}));
 for(const [id,key] of [['sound-setting','sound'],['contrast-setting','symbols'],['motion-setting','motion']])$('#'+id).addEventListener('change',e=>{prefs[key]=e.target.checked;applyPrefs();save('wortwerk:preferences',prefs);if(key==='sound')sound('submit');});
 $('#invite-copy').addEventListener('click',async()=>{await copy(challengeURL(config,location.href),'Spiel-Link kopiert. Fordere jemanden heraus!');sharingNote();});
+$('#result-image').addEventListener('click',shareResultImage);
 $('#result-copy').addEventListener('click',()=>copy(shareText(game,config,location.href),'Ergebnis kopiert. Ohne Lösungswort.'));
 $('#result-reopen').addEventListener('click',showResult);
-$('#next-game').addEventListener('click',()=>{activate({...config,daily:false,seed:randomSeed()});focusGame();});
+$('#next-game').addEventListener('click',()=>{activate({version:VERSION,mode:config.mode,length:config.length,attempts:config.attempts,hard:config.hard,daily:false,seed:randomSeed()});focusGame();});
 window.addEventListener('hashchange',()=>{try{const code=new URLSearchParams(location.hash.slice(1)).get('spiel');if(code&&code!==codeFor(config)){persist();activate(parseCode(code));}}catch(e){toast(e.message);history.replaceState(null,'',challengeURL(config,location.href));}});
 window.addEventListener('storage',e=>{if(lexiconState==='ready'&&e.key===currentKey()&&e.newValue){let raw;try{raw=JSON.parse(e.newValue);}catch{return;}const incoming=restoreGame(raw,config);if(incoming.guesses.length>=game.guesses.length){game=incoming;renderBoards();initialMessage();}}});
 setInterval(()=>{expire();updateTimer();},250);
