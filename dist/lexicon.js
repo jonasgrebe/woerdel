@@ -23,7 +23,7 @@ export async function createSpellchecker(affBytes, dicBytes) {
   const cache = new Map();
   return {
     accepts(tiles) {
-      if (!/^[A-ZÄÖÜẞ]{4,8}$/.test(tiles)) return false;
+      if (!/^[A-ZÄÖÜẞ]{4,12}$/.test(tiles)) return false;
       if (cache.has(tiles)) return cache.get(tiles);
       const lower = tiles.normalize('NFC').replace(/ẞ/g, 'ß').toLocaleLowerCase('de-DE');
       const title = lower[0].toLocaleUpperCase('de-DE') + lower.slice(1);

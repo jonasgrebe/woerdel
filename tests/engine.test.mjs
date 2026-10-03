@@ -4,13 +4,37 @@ import {SOLUTIONS,EXTRA_GUESSES} from '../dist/words.js';
 import {VERSION,CUSTOM_VERSION,attemptOptions,createCustomConfig,validateConfig,setWordValidator,normalizeWord,berlinDate,dailyConfig,codeFor,parseCode,targetsFor,scoreGuess,keyboardStates,newGame,outcome,guessError,restoreGame,hardError,shareText,challengeURL,SPRINT_MS} from '../dist/engine.js';
 const custom=(extra={})=>({...dailyConfig(),daily:false,seed:'KAFFEEPAUSE',...extra});
 test('German normalization keeps umlauts and sharp S as one tile',()=>{assert.equal(normalizeWord('größer'),'GRÖẞER');assert.equal(normalizeWord('gru\u0308ße'),'GRÜẞE');});
-test('solution pools are sorted, unique and restricted to requested lengths',()=>{for(const [n,words] of Object.entries(SOLUTIONS)){assert.ok(words.length>=70);assert.equal(new Set(words).size,words.length);for(const w of words){assert.equal([...w].length,Number(n));assert.match(w,/^[A-ZÄÖÜẞ]+$/);}assert.deepEqual(words,[...words].sort());}assert.ok(EXTRA_GUESSES.length>100);});
+test('solution pools are sorted, unique and cover every requested length from4 to12',()=>{assert.deepEqual(Object.keys(SOLUTIONS).map(Number),[4,5,6,7,8,9,10,11,12]);for(const [n,words] of Object.entries(SOLUTIONS)){assert.ok(words.length>=70);assert.equal(new Set(words).size,words.length);for(const w of words){assert.equal([...w].length,Number(n));assert.match(w,/^[A-ZÄÖÜẞ]+$/);}assert.deepEqual(words,[...words].sort());}assert.ok(EXTRA_GUESSES.length>100);});
 test('repeated letters consume only the remaining target inventory',()=>{assert.deepEqual(scoreGuess('LALL','BALL'),['absent','correct','correct','correct']);assert.deepEqual(scoreGuess('ALLEEN','BALLET'),['present','present','correct','absent','correct','absent']);assert.deepEqual(scoreGuess('AAAA','BALL'),['absent','correct','absent','absent']);});
 test('scoring invariant over every curated target',()=>{for(const word of Object.values(SOLUTIONS).flat()){assert.ok(scoreGuess(word,word).every(x=>x==='correct'));for(const letter of new Set(word)){const guess=letter.repeat(word.length),score=scoreGuess(guess,word);assert.equal(score.filter(s=>s!=='absent').length,[...word].filter(c=>c===letter).length);}}});
 test('Berlin rollover is consistent through daylight saving time',()=>{assert.equal(berlinDate(new Date('2026-10-02T21:59:59Z')),'2026-10-02');assert.equal(berlinDate(new Date('2026-10-02T22:00:00Z')),'2026-10-03');assert.equal(berlinDate(new Date('2026-12-01T23:00:00Z')),'2026-12-02');});
-test('daily deck has no repeated target until every word was used',()=>{for(let length=4;length<=8;length++){const seen=new Set();for(let d=0;d<SOLUTIONS[length].length;d++){const seed=new Date(Date.UTC(2026,0,1+d)).toISOString().slice(0,10);seen.add(targetsFor({...dailyConfig(),length,seed})[0]);}assert.equal(seen.size,SOLUTIONS[length].length);}});
-test('all modes roundtrip with rules and distinct duet targets',()=>{for(const mode of ['classic','duet','sprint'])for(let length=4;length<=8;length++){const c=custom({mode,length,attempts:mode==='duet'?8:6});assert.deepEqual(parseCode(codeFor(c)),c);assert.deepEqual(targetsFor(c),targetsFor(parseCode(codeFor(c))));if(mode==='duet')assert.equal(new Set(targetsFor(c)).size,2);}});
-test('reject malformed versions, modes, dates, seeds and conflicting rules',()=>{for(const bad of ['2~classic~6~6~0~f~X','1~x~6~6~0~f~X','1~classic~3~6~0~f~X','1~classic~6~6~0~d~2026-02-31','1~duet~6~8~1~f~X','1~classic~6~6~0~f~<script>','1~classic~6~6~wat~f~X',''])assert.throws(()=>parseCode(bad));});
+test('daily decks avoid repeats in every mode and length until every word was used',()=>{
+  for(const mode of ['classic','duet','sprint'])for(let length=4;length<=12;length++){
+    const seen=Array.from({length:mode==='duet'?2:1},()=>new Set());
+    for(let d=0;d<SOLUTIONS[length].length;d++){
+      const seed=new Date(Date.UTC(2026,0,1+d)).toISOString().slice(0,10);
+      const targets=targetsFor({...dailyConfig(),mode,length,seed});
+      assert.equal(new Set(targets).size,targets.length);
+      targets.forEach((word,i)=>seen[i].add(word));
+    }
+    for(const board of seen)assert.equal(board.size,SOLUTIONS[length].length);
+  }
+});
+test('all modes roundtrip with rules and distinct duet targets',()=>{for(const mode of ['classic','duet','sprint'])for(let length=4;length<=12;length++){const c=custom({mode,length,attempts:mode==='duet'?8:6});assert.deepEqual(parseCode(codeFor(c)),c);assert.deepEqual(targetsFor(c),targetsFor(parseCode(codeFor(c))));assert.ok(targetsFor(c).every(w=>w.length===length));if(mode==='duet')assert.equal(new Set(targetsFor(c)).size,2);}});
+test('long seeded targets are guessable and saved wins restore in every mode',()=>{
+  for(const mode of ['classic','duet','sprint'])for(let length=9;length<=12;length++){
+    const c=custom({mode,length}),g=newGame(c);g.startedAt=10_000;
+    for(const target of targetsFor(c)){
+      assert.equal(guessError(target,g,c,10_500),null);
+      g.guesses.push(target);
+    }
+    g.finishedAt=11_000;g.reason='solved';
+    const restored=restoreGame(g,c,12_000);
+    assert.deepEqual(restored.guesses,g.guesses);
+    assert.equal(outcome(restored,c,12_000),'won');
+  }
+});
+test('reject malformed versions, modes, dates, seeds and conflicting rules',()=>{for(const bad of ['2~classic~6~6~0~f~X','1~x~6~6~0~f~X','1~classic~3~6~0~f~X','1~classic~13~6~0~f~X','1~duet~13~8~0~f~X','1~sprint~13~6~0~f~X','1~classic~6~6~0~d~2026-02-31','1~duet~6~8~1~f~X','1~classic~6~6~0~f~<script>','1~classic~6~6~wat~f~X',''])assert.throws(()=>parseCode(bad));});
 test('invalid and repeated guesses never qualify as legal submissions',()=>{const c=custom(),g=newGame(c);assert.match(guessError('A',g,c),/6 Buchstaben/);assert.match(guessError('ZZZZZZ',g,c),/Wörterbuch/);const w=SOLUTIONS[6].find(w=>w!==targetsFor(c)[0]);g.guesses.push(w);assert.match(guessError(w,g,c),/schon ausprobiert/);});
 test('Knobelmodus checks exact previous feedback, including repeated letters',()=>{const g={guesses:['LALL']};assert.equal(hardError('BALL',g,'BALL'),null);assert.ok(hardError('LALL',g,'BALL'));assert.ok(hardError('BALD',g,'BALL'));});
 test('duet requires both words, and each board solves independently',()=>{const c=custom({mode:'duet',attempts:8}),g=newGame(c),t=targetsFor(c);g.guesses.push(t[0]);assert.equal(outcome(g,c),'playing');g.guesses.push(t[1]);assert.equal(outcome(g,c),'won');});
@@ -80,8 +104,41 @@ test('custom words normalize whitespace, umlauts and sharp S into canonical v2 r
   }
 });
 
+test('long custom words work in every mode without dictionary membership',()=>{
+  setWordValidator(()=>false);
+  try{
+    for(const mode of ['classic','duet','sprint'])for(let length=9;length<=12;length++){
+      const words=mode==='duet'?['ẞ'.repeat(length),'ẞ'.repeat(length-1)+'Ü']:['ẞ'.repeat(length)];
+      const c=createCustomConfig({mode,seed:'LANGES-RÄTSEL',words}),g=newGame(c);
+      assert.equal(c.length,length);
+      const link=codeFor(c);
+      assert.deepEqual(parseCode(link),c);
+      assert.equal(codeFor(parseCode(link)),link);
+      assert.match(guessError('Q'.repeat(length),g,c),/Wörterbuch/);
+      g.input=words[0];g.startedAt=10_000;
+      assert.equal(restoreGame(g,c,10_200).input,words[0]);
+      for(const target of words){assert.equal(guessError(target,g,c,10_500),null);g.guesses.push(target);}
+      g.finishedAt=11_000;g.reason='solved';
+      assert.equal(outcome(restoreGame(g,c,12_000),c,12_000),'won');
+    }
+    const boundary=createCustomConfig({mode:'duet',words:[' u\u0308berraschung ',' straßenlampe ']});
+    assert.equal(boundary.length,12);
+    assert.deepEqual(boundary.customTargets,['ÜBERRASCHUNG','STRAẞENLAMPE']);
+  }finally{setWordValidator(null);}
+});
+
+test('length13 is rejected in seeded and explicit-target links for every mode',()=>{
+  const payload=words=>Buffer.from(words.join('.'),'utf8').toString('base64url');
+  for(const mode of ['classic','duet','sprint']){
+    const words=mode==='duet'?['A'.repeat(13),'B'.repeat(13)]:['A'.repeat(13)];
+    assert.throws(()=>validateConfig(custom({mode,length:13})));
+    assert.throws(()=>createCustomConfig({mode,words}),/4–12 Buchstaben/);
+    assert.throws(()=>parseCode(`2~${mode}~13~6~0~w~TEST~${payload(words)}`));
+  }
+});
+
 test('custom configuration rejects invalid letters, lengths and mismatched boards',()=>{
-  for(const words of [undefined,null,'HAUS',[],[null],['ABC'],['NEUNZEICHEN'],['HA US'],['HA-US'],['HAU1'],['HAU😀'],['<svg>'],['HAUS','BAUM']]){
+  for(const words of [undefined,null,'HAUS',[],[null],['ABC'],['ABCDEFGHIJKLM'],['HA US'],['HA-US'],['HAU1'],['HAU😀'],['<svg>'],['HAUS','BAUM']]){
     assert.throws(()=>createCustomConfig({words}),String(words));
   }
   for(const words of [['HAUS'],['HAUS','BÄUME'],['haus',' HAUS '],['HAUS','BAUM','MAUS']]){
@@ -96,11 +153,11 @@ test('custom configuration rejects invalid letters, lengths and mismatched board
 
 test('custom creator explains empty, short, long and invalid-letter input',()=>{
   assert.throws(()=>createCustomConfig({words:['   ']}),/Bitte gib ein eigenes Wort ein/);
-  assert.throws(()=>createCustomConfig({words:['ABC']}),/Dein Wort braucht 4–8 Buchstaben/);
-  assert.throws(()=>createCustomConfig({words:['ABCDEFGHI']}),/Dein Wort braucht 4–8 Buchstaben/);
+  assert.throws(()=>createCustomConfig({words:['ABC']}),/Dein Wort braucht 4–12 Buchstaben/);
+  assert.throws(()=>createCustomConfig({words:['ABCDEFGHIJKLM']}),/Dein Wort braucht 4–12 Buchstaben/);
   for(const word of ['HA US','HAUS1','HAU😀']) assert.throws(()=>createCustomConfig({words:[word]}),/Dein Wort darf nur Buchstaben enthalten/);
   assert.throws(()=>createCustomConfig({mode:'duet',words:['HAUS','']}),/Bitte gib Wort 2 ein/);
-  assert.throws(()=>createCustomConfig({mode:'duet',words:['HAUS','ABC']}),/Wort 2 braucht 4–8 Buchstaben/);
+  assert.throws(()=>createCustomConfig({mode:'duet',words:['HAUS','ABC']}),/Wort 2 braucht 4–12 Buchstaben/);
   assert.throws(()=>createCustomConfig({mode:'duet',words:['HAUS','BAU1']}),/Wort 2 darf nur Buchstaben enthalten/);
   assert.throws(()=>validateConfig({version:2,mode:'classic',length:3,attempts:6,hard:false,daily:false,seed:'TEST',customTargets:['ABC']}),/Spiel-Link ist ungültig/);
 });
@@ -108,15 +165,17 @@ test('custom creator explains empty, short, long and invalid-letter input',()=>{
 test('v2 payloads reject malformed UTF-8, noncanonical encodings and invalid structure',()=>{
   const encode=text=>Buffer.from(text,'utf8').toString('base64url');
   const prefix='2~classic~4~6~0~w~EIGENES-WORT~';
-  const badPayloads=['','!','_w','A',encode('AAAA')+'=',encode('AAAA').slice(0,-1)+'R',encode('aaaA'),encode('AAAA.BBBB'),encode('AAA'),encode('AA.A'),encode('AAAA\u0000'),'A'.repeat(67)];
+  const badPayloads=['','!','_w','A',encode('AAAA')+'=',encode('AAAA').slice(0,-1)+'R',encode('aaaA'),encode('AAAA.BBBB'),encode('AAA'),encode('AA.A'),encode('AAAA\u0000'),'A'.repeat(99)];
   for(const payload of badPayloads) assert.throws(()=>parseCode(prefix+payload),payload);
   const valid=codeFor(createCustomConfig({words:['HAUS']}));
   for(const malformed of [valid.replace(/^2~/,'02~'),valid.replace('~4~6~','~04~6~'),valid.replace('~4~6~','~4~6.0~'),valid.replace('~w~','~f~'),valid+'~extra',valid.replace(/^2~/,'3~'),valid.replace('~0~w~','~2~w~')]){
     assert.throws(()=>parseCode(malformed),malformed);
   }
-  const maximum=createCustomConfig({mode:'duet',attempts:15,seed:'ẞ'.repeat(32),words:['ẞ'.repeat(8),'ẞ'.repeat(7)+'Ü']});
-  assert.ok(codeFor(maximum).length<=120);
+  const maximum=createCustomConfig({mode:'duet',attempts:15,seed:'ẞ'.repeat(32),words:['ẞ'.repeat(12),'ẞ'.repeat(11)+'Ü']});
+  assert.ok(codeFor(maximum).length>120);
+  assert.ok(codeFor(maximum).length<=160);
   assert.deepEqual(parseCode(codeFor(maximum)),maximum);
+  assert.throws(()=>parseCode('A'.repeat(161)),/zu lang/);
 });
 
 test('custom targets stay guessable and restorable even outside the dictionary',()=>{

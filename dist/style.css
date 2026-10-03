@@ -62,3 +62,21 @@ html[data-theme=light]{--key-absent-bg:#ae2846;--key-absent-border:#8e1e38;--key
 @media(max-width:480px){.key-duet-mark{font-size:9px}.key-duet-mark.left{left:3px}.key-duet-mark.right{right:3px}.duet .key.letter-key .key-letter{padding:1px 2px;min-width:16px}}
 
 .finished .key{opacity:1}
+
+/* Long words keep readable tiles instead of squeezing two grids on phones. */
+#length-control{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.config-dialog #length-control button{padding:9px 4px}
+.game-panel.extra-long-word .board{max-width:600px;gap:4px}
+.extra-long-word .board-row{gap:4px}
+.game-panel.extra-long-word .tile{font-size:25px}
+.game-panel.duet.extra-long-word .tile{font-size:18px}
+.result-grid.wide-result{flex-direction:column;align-items:center;gap:15px}
+@media(max-width:640px){
+  .game-panel.extra-long-word .board{max-width:100%;gap:3px;--tile-size:30px}
+  .extra-long-word .board-row{gap:3px}
+  .game-panel.extra-long-word .tile{font-size:clamp(16px,4.2vw,23px);border-radius:3px}
+  .extra-long-word .tile .status-symbol{font-size:7px;right:1px;bottom:1px}
+  .extra-long-word .duet-boards{grid-template-columns:minmax(0,1fr);gap:20px;max-width:500px;margin:auto}
+  .game-panel.duet.extra-long-word .tile{font-size:clamp(16px,4.2vw,23px)}
+  .duet.extra-long-word .boards-viewport{max-height:clamp(240px,42dvh,430px);overflow-y:auto;overscroll-behavior:contain;padding:3px 2px 5px}
+}

@@ -17,18 +17,18 @@ Alternativ kann jeder statische HTTP-Server den Ordner `dist/` ausliefern. Die H
 ## Was drinsteckt
 
 - **Tageswort:** standardmäßig sechs Buchstaben. Wechsel um Mitternacht in `Europe/Berlin`, inklusive Sommerzeit. Ein begonnenes Rätsel bleibt beim Tageswechsel erhalten.
-- **Klassik:** ein Wort mit vier bis acht Buchstaben und einem bis 15 Versuchen.
+- **Klassik:** ein Wort mit vier bis zwölf Buchstaben und einem bis 15 Versuchen.
 - **Doppelpack:** zwei verschiedene Wörter mit gemeinsamen Eingaben, zwei bis 15 Versuchen, getrennten Hinweisen und geteilter Tastatur: links Wort 1, rechts Wort 2. Ein gelöstes Feld bleibt stehen.
 - **Sprint:** ein Wort in 120 Sekunden. Start beim ersten Buchstaben. Neuladen, Dialoge oder Hintergrund-Tabs pausieren die Uhr nicht.
 - **Knobelmodus:** Jeder neue Versuch muss zu sämtlichen bisherigen Hinweisen passen, einschließlich ausgeschlossener Buchstaben und mehrfacher Vorkommen. Nicht mit Doppelpack kombinierbar.
-- **Eigene Wörter:** ein selbst gewähltes Wort oder zwei verschiedene, gleich lange Wörter im Doppelpack (4–8 Buchstaben). Auch Namen sind erlaubt. Die Zielwörter bleiben beim Öffnen der Einstellungen leer und werden nicht im Ergebnistext ausgeschrieben.
+- **Eigene Wörter:** ein selbst gewähltes Wort oder zwei verschiedene, gleich lange Wörter im Doppelpack (4–12 Buchstaben). Auch Namen sind erlaubt. Die Zielwörter bleiben beim Öffnen der Einstellungen leer und werden nicht im Ergebnistext ausgeschrieben.
 - **Seeds:** frei wählbar oder zufällig; Spiel-Links enthalten Version, Modus, Länge, Versuche, Knobelmodus und Seed.
 - **Lösungsanzeige:** Das Zielwort wird ausschließlich nach einem gewonnenen Spiel eingeblendet, niemals nach Zeitablauf oder aufgebrauchten Versuchen.
 - **Teilen:** spoilerfreie Emoji-Ergebnisse, WhatsApp-Link mit formatierten Rasterzeilen, Kopierfunktion mit manuellem Fallback und ein spoilerfreies PNG-Raster zum Teilen oder Speichern.
 - **Anpassung:** Hell und Dunkel; optionale Spielklänge, Statussymbole und reduzierte Bewegung. Ausgeschlossene Tastaturbuchstaben erscheinen rot mit Durchstreichung und ×.
 - **Fokus:** Das Grid steht im Mittelpunkt; die Konfiguration öffnet sich rechts und schließt nach dem Start automatisch.
 - **Komfort:** physische und Bildschirmtastatur, mobile Ansicht, lokale Spielstände, Dialoge mit Fokusführung und deutsche Beschriftung.
-- **Wörter:** 2.450 kuratierte Zielwörter; zusätzlich vollständige Rechtschreibprüfung mit Hunspell und 258.200 Wörterbucheinträgen sowie Beugungs- und Zusammensetzungsregeln. Ä, Ö, Ü und ẞ zählen jeweils als ein Buchstabe. Auch kleines ß wird korrekt behandelt.
+- **Wörter:** 2.850 kuratierte Zielwörter; zusätzlich vollständige Rechtschreibprüfung mit Hunspell und 258.200 Wörterbucheinträgen sowie Beugungs- und Zusammensetzungsregeln. Ä, Ö, Ü und ẞ zählen jeweils als ein Buchstabe. Auch kleines ß wird korrekt behandelt.
 
 Die klassische Tageswort-Reihe mit sechs Buchstaben hat 701 Wörter, die innerhalb eines Zyklus nicht wiederholt werden. Für andere Wortlängen und Modi gibt es eigene tägliche Reihen. Einstellungen für Versuche und Knobelmodus ändern die Regeln, nicht das gewählte Wort.
 

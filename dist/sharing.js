@@ -113,7 +113,8 @@ export async function resultImage(game, config, base) {
       // Browser fallbacks remain readable if a local font cannot be loaded.
     }
   }
-  const boardHeights = model.boards.map(board => 116 + Math.max(1, board.rows.length) * TILE + Math.max(0, board.rows.length - 1) * GAP);
+  const tileSize = Math.min(TILE, Math.floor((WIDTH - 2 * MARGIN - 56 - (config.length - 1) * GAP) / config.length));
+  const boardHeights = model.boards.map(board => 116 + Math.max(1, board.rows.length) * tileSize + Math.max(0, board.rows.length - 1) * GAP);
   const boardTop = 370, boardGap = 34;
   const boardEnd = boardTop + boardHeights.reduce((a, b) => a + b, 0) + (boardHeights.length - 1) * boardGap;
   const height = boardEnd + 278;
@@ -154,11 +155,11 @@ export async function resultImage(game, config, base) {
     drawText(context, model.boards.length > 1 ? `WORT ${String(n + 1).padStart(2, '0')}` : 'DEIN RASTER', MARGIN + 28, y + 42, { size: 18, weight: 600, font: DISPLAY_FONT, color: COLORS.muted });
     const solvedText = board.solved >= 0 ? `Gelöst in ${board.solved + 1} ${board.solved === 0 ? 'Versuch' : 'Versuchen'}` : model.state === 'playing' ? 'Noch offen' : 'Nicht gelöst';
     drawText(context, solvedText, WIDTH - MARGIN - 28, y + 42, { size: 20, weight: 500, color: board.solved >= 0 ? COLORS.accent : COLORS.muted, align: 'right' });
-    const gridWidth = config.length * TILE + (config.length - 1) * GAP;
+    const gridWidth = config.length * tileSize + (config.length - 1) * GAP;
     const gridX = (WIDTH - gridWidth) / 2;
     if (board.rows.length) {
       board.rows.forEach((row, r) => row.forEach((status, c) => {
-        roundedRect(context, gridX + c * (TILE + GAP), y + 72 + r * (TILE + GAP), TILE, TILE, 10, COLORS[status]);
+        roundedRect(context, gridX + c * (tileSize + GAP), y + 72 + r * (tileSize + GAP), tileSize, tileSize, 10, COLORS[status]);
       }));
     } else {
       drawText(context, 'Noch kein Versuch abgegeben.', WIDTH / 2, y + 133, { size: 25, color: COLORS.muted, align: 'center' });

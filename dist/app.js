@@ -43,7 +43,7 @@ function renderConfig(){
   $('#hard-mode').closest('label').querySelector('small').textContent=draft.mode==='duet'?'Im Doppelpack nicht kombinierbar':'Alle Hinweise weiterverwenden';
   $('#seed-fields').hidden=own;$('#own-word-fields').hidden=!own;$('#second-word-field').hidden=draft.mode!=='duet';
   $('#target-word').value=draftWords[0];$('#target-word-2').value=draftWords[1];
-  $('#target-hint').textContent=draft.mode==='duet'?'Zwei verschiedene Wörter mit jeweils 4–8 Buchstaben und gleicher Länge. Auch Namen sind möglich.':'4–8 Buchstaben, auch Namen. Ä, Ö, Ü und ẞ zählen einzeln.';
+  $('#target-hint').textContent=draft.mode==='duet'?'Zwei verschiedene Wörter mit jeweils 4–12 Buchstaben und gleicher Länge. Auch Namen sind möglich.':'4–12 Buchstaben, auch Namen. Ä, Ö, Ü und ẞ zählen einzeln.';
   $('#seed-input').value=draft.seed;$('#seed-input').readOnly=draft.daily;
   $('#seed-caption').textContent=draft.daily?'NEU UM 00:00 UHR':'DASSELBE WORT FÜR ALLE';
   $('#config-footnote').textContent=own?'Erstelle das Rätsel und teile den Spiel-Link.':draft.daily?'Täglich neu. Nach deutscher Zeit.':'Seed + Regeln = dasselbe Rätsel.';
@@ -51,16 +51,21 @@ function renderConfig(){
   $('#start-game').lastChild.textContent=own?'Rätsel erstellen':same?'Spiel läuft':'Spiel starten';
   $('#seed-error').textContent='';
 }
+function syncBoardViewport(){
+  const viewport=$('#boards-scroll'),scrollable=viewport.scrollHeight>viewport.clientHeight+1;
+  $('#board-scroll-hint').hidden=!scrollable;viewport.tabIndex=scrollable?0:-1;
+}
 function keepCurrentRowVisible(){
   const viewport=$('#boards-scroll');
-  if(config.attempts<=8){viewport.scrollTop=0;return;}
+  if(viewport.scrollHeight<=viewport.clientHeight+1){viewport.scrollTop=0;return;}
   const rows=viewport.querySelectorAll('.board-unit')[activeBoard]?.querySelectorAll('.board-row');
   const row=rows?.[Math.min(game.guesses.length,config.attempts-1)];if(!row)return;
   const box=viewport.getBoundingClientRect(),rect=row.getBoundingClientRect();
   if(rect.bottom>box.bottom)viewport.scrollTop+=rect.bottom-box.bottom+8;
   else if(rect.top<box.top)viewport.scrollTop-=box.top-rect.top+8;
 }
-function renderBoards(reveal=false,pop=false){
+function renderBoards(reveal=false,pop=false,preserveScroll=false){
+  const previousScroll=$('#boards-scroll').scrollTop;
   const solved=solvedAt(game,targets), ended=outcome(game,config)!=='playing';
   const html=targets.map((target,n)=>{
     const stop=solved[n],done=stop>=0;
@@ -77,15 +82,15 @@ function renderBoards(reveal=false,pop=false){
     return `<div class="board-unit">${config.mode==='duet'?`<div class="board-label${done?' solved':''}"><span>WORT ${n+1}${done?' ✓':''}</span><span class="board-key-side">${n===0?'LINKS':'RECHTS'}</span></div>`:''}<div class="board" style="--letters:${config.length}" role="group" aria-label="Wort ${n+1}">${rows}</div></div>`;
   }).join('');
   $('#boards').className=config.mode==='duet'?'duet-boards':'';$('#boards').innerHTML=html;
-  $('#spiel').classList.toggle('duet',config.mode==='duet');$('#spiel').classList.toggle('long-word',config.length>=7);
+  $('#spiel').classList.toggle('duet',config.mode==='duet');$('#spiel').classList.toggle('long-word',config.length>=7);$('#spiel').classList.toggle('extra-long-word',config.length>=9);
   $('#attempt-count').textContent=ended?`${game.guesses.length} / ${config.attempts} VERSUCHE`:`VERSUCH ${game.guesses.length+1} / ${config.attempts}`;
   $('#active-rules').textContent=`${config.length} Buchstaben · ${config.attempts} Versuche${config.hard?' · Knobelmodus':''}`;
   $('#game-mode').textContent=(config.version===CUSTOM_VERSION?'EIGENES RÄTSEL':config.daily?'TAGESWORT':'FREIES SPIEL')+' · '+MODES[config.mode].toUpperCase();
   $('#result-reopen').hidden=!ended;$('#spiel').classList.toggle('finished',ended);
   $('#keyboard-note').hidden=config.mode!=='duet';$('#keyboard-note').textContent='Jede Taste: links Wort 1 · rechts Wort 2';
   $('#timer').hidden=config.mode!=='sprint';$('#timer-track').hidden=config.mode!=='sprint';
-  $('#spiel').classList.toggle('extended-game',config.attempts>8);$('#board-scroll-hint').hidden=config.attempts<=8;$('#boards-scroll').tabIndex=config.attempts>8?0:-1;
-  updateKeyboard();updateTimer();keepCurrentRowVisible();
+  $('#spiel').classList.toggle('extended-game',config.attempts>8);syncBoardViewport();
+  updateKeyboard();updateTimer();if(preserveScroll)$('#boards-scroll').scrollTop=previousScroll;else keepCurrentRowVisible();
 }
 function buildKeyboard(){const rows=['QWERTZUIOPÜ','ASDFGHJKLÖÄ','YXCVBNMẞ'];$('#keyboard').innerHTML=rows.map((row,i)=>`<div class="key-row">${i===2?'<button class="key wide submit" data-key="Enter" aria-label="Wort prüfen">Prüfen</button>':''}${[...row].map(c=>`<button class="key letter-key" data-key="${c}" aria-label="${c}"><span class="key-letter">${c}</span><span class="key-excluded" aria-hidden="true">×</span><span class="key-duet-mark left" aria-hidden="true"></span><span class="key-duet-mark right" aria-hidden="true"></span></button>`).join('')}${i===2?'<button class="key wide" data-key="Backspace" aria-label="Buchstaben löschen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5-6 7 6 7h13V5Z M11 9l6 6m0-6-6 6"/></svg></button>':''}</div>`).join('');}
 function updateKeyboard(){
@@ -129,10 +134,10 @@ function inputKey(raw){
   if(lexiconState!=='ready'){message('Das deutsche Wörterbuch wird noch vorbereitet.');return;}
   if(locked||$$('dialog[open]').length||expire()||outcome(game,config)!=='playing')return;
   if(raw==='Enter'){submitGuess();return;}
-  if(raw==='Backspace'){game.input=game.input.slice(0,-1);persist();renderBoards();return;}
+  if(raw==='Backspace'){game.input=game.input.slice(0,-1);persist();renderBoards(false,false,true);return;}
   const key=normalizeWord(raw);
   if(!/^[A-ZÄÖÜẞ]$/.test(key)||game.input.length>=config.length)return;
-  startClock();game.input+=key;persist();renderBoards(false,true);sound('type');message(config.mode==='sprint'?'Die Uhr läuft. Vertrau deinem Wortgefühl.':'Mit Enter prüfen. Mit ⌫ korrigieren.');
+  startClock();game.input+=key;persist();renderBoards(false,true,true);sound('type');message(config.mode==='sprint'?'Die Uhr läuft. Vertrau deinem Wortgefühl.':'Mit Enter prüfen. Mit ⌫ korrigieren.');
 }
 function submitGuess(){
   if(lexiconState!=='ready'){message('Bitte warte, bis das Wörterbuch bereit ist.');return;}
@@ -156,7 +161,7 @@ function showResult(){
   $('#result-title').textContent=won?(game.guesses.length<=2?'Gedanken gelesen.':game.guesses.length<=4?'Das sitzt.':'Punktlandung.'):config.mode==='duet'&&solved.some(i=>i>=0)?'Halb gelöst. Voll dabei.':'Neues Wort. Neues Glück.';
   $('#result-description').textContent=won?`${targets.length===2?'Beide Wörter':'Dein Wort'} in ${game.guesses.length} ${game.guesses.length===1?'Versuch':'Versuchen'}. ${config.mode==='sprint'?'Und die Uhr hat das Nachsehen.':'Zeit für eine kleine Siegerpause.'}`:game.reason==='time'?'120 Sekunden sind um. Das nächste Wort gehört dir.':'Manche Wörter verstecken sich einfach gut. Weiter geht’s beim nächsten.';
   $('#result-answer').textContent=won?targets.join(' · '):'';$('#result-answer').hidden=!won;$('.answer-label').hidden=!won;
-  $('#result-grid').innerHTML=targets.map((t,n)=>`<div class="mini-board" aria-label="Wort ${n+1}">${game.guesses.slice(0,solved[n]<0?undefined:solved[n]+1).map(g=>`<div class="mini-row">${scoreGuess(g,t).map(s=>`<i class="mini-tile ${s}" aria-label="${states[s]}"></i>`).join('')}</div>`).join('')}</div>`).join('');
+  $('#result-grid').classList.toggle('wide-result',config.length>=9);$('#result-grid').innerHTML=targets.map((t,n)=>`<div class="mini-board" aria-label="Wort ${n+1}">${game.guesses.slice(0,solved[n]<0?undefined:solved[n]+1).map(g=>`<div class="mini-row">${scoreGuess(g,t).map(s=>`<i class="mini-tile ${s}" aria-label="${states[s]}"></i>`).join('')}</div>`).join('')}</div>`).join('');
   $('#result-meta').textContent=`${MODES[config.mode]} · ${config.length} Buchstaben · ${config.hard?'Knobelmodus · ':''}${config.version===CUSTOM_VERSION?'Eigenes Rätsel':'#'+config.seed}`;
   $('#whatsapp-share').href=whatsappURL(game,config,location.href);
   prepareResultImage();
@@ -189,6 +194,7 @@ buildKeyboard();applyPrefs();activate(config);if(initialError)toast(initialError
 $('#keyboard').addEventListener('click',e=>{const key=e.target.closest('[data-key]');if(key){inputKey(key.dataset.key);$('#spiel').focus({preventScroll:true});}});
 document.addEventListener('keydown',e=>{if(e.ctrlKey||e.metaKey||e.altKey||e.isComposing||e.target.closest('input,textarea,select,dialog'))return;if(['Enter',' '].includes(e.key)&&e.target.closest('button,a'))return;if(e.key==='Enter'||e.key==='Backspace'||/^[a-zA-ZäöüÄÖÜßẞ]$/.test(e.key)){e.preventDefault();inputKey(e.key);$('#spiel').focus({preventScroll:true});}});
 document.addEventListener('paste',e=>{if(e.target.closest('input,textarea,dialog'))return;const word=normalizeWord(e.clipboardData.getData('text').trim());if(/^[A-ZÄÖÜẞ]+$/.test(word)){e.preventDefault();[...word].forEach(inputKey);}});
+if(typeof ResizeObserver!=='undefined')new ResizeObserver(syncBoardViewport).observe($('#boards-scroll'));
 $('#length-control').addEventListener('click',e=>{const b=e.target.closest('[data-length]');if(b){draft.length=Number(b.dataset.length);renderConfig();}});
 $('#attempt-control').addEventListener('change',e=>{draft.attempts=Number(e.target.value);renderConfig();});
 $('#game-type').addEventListener('change',e=>{draft.mode=e.target.value;renderConfig();});
@@ -231,7 +237,7 @@ $('#dictionary-attribution').textContent='Wortprüfung: Hunspell mit dem deutsch
 if(document.modelContext?.registerTool){
   const tools=[
     {name:'wortwerk_read_game',title:'Spielstand lesen',description:'Liest den sichtbaren Spielstand ohne die noch geheimen Zielwörter.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true},execute:async()=>({mode:MODES[config.mode],length:config.length,attempts:config.attempts,seed:config.seed,guesses:game.guesses,feedback:targets.map(t=>game.guesses.map(g=>scoreGuess(g,t))),status:outcome(game,config),input:game.input})},
-    {name:'wortwerk_submit_guess',title:'Wort prüfen',description:'Gibt einen deutschen Wortversuch im laufenden Rätsel ab. Verbraucht bei einem gültigen Wort einen Versuch.',inputSchema:{type:'object',properties:{word:{type:'string',minLength:4,maxLength:8}},required:['word'],additionalProperties:false},annotations:{readOnlyHint:false},execute:async input=>{if(!input||typeof input.word!=='string')throw new Error('Ein Wort wird benötigt.');if(lexiconState!=='ready')throw new Error('Das Wörterbuch wird noch geladen.');if(locked||$$('dialog[open]').length)throw new Error('Bitte schließe den Dialog oder warte die Aufdeckung ab.');const word=normalizeWord(input.word),error=guessError(word,game,config);if(error)throw new Error(error);game.input=word;submitGuess();return{guesses:game.guesses.length,status:outcome(game,config)};}}
+    {name:'wortwerk_submit_guess',title:'Wort prüfen',description:'Gibt einen deutschen Wortversuch im laufenden Rätsel ab. Verbraucht bei einem gültigen Wort einen Versuch.',inputSchema:{type:'object',properties:{word:{type:'string',minLength:4,maxLength:12}},required:['word'],additionalProperties:false},annotations:{readOnlyHint:false},execute:async input=>{if(!input||typeof input.word!=='string')throw new Error('Ein Wort wird benötigt.');if(lexiconState!=='ready')throw new Error('Das Wörterbuch wird noch geladen.');if(locked||$$('dialog[open]').length)throw new Error('Bitte schließe den Dialog oder warte die Aufdeckung ab.');const word=normalizeWord(input.word),error=guessError(word,game,config);if(error)throw new Error(error);game.input=word;submitGuess();return{guesses:game.guesses.length,status:outcome(game,config)};}}
   ];
   for(const tool of tools)try{Promise.resolve(document.modelContext.registerTool(tool)).catch(()=>{});}catch{}
 }

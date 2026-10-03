@@ -37,8 +37,8 @@ test('WhatsApp URL uses one encoded parameter and preserves text, lines and chal
   assert.deepEqual(parseCode(new URLSearchParams(link.hash.slice(1)).get('spiel')), config);
 });
 
-test('every 4–8 tile row remains contiguous and has exactly the configured grapheme count', () => {
-  for (const mode of ['classic', 'duet', 'sprint']) for (let length = 4; length <= 8; length++) {
+test('every 4–12 tile row remains contiguous and has exactly the configured grapheme count', () => {
+  for (const mode of ['classic', 'duet', 'sprint']) for (let length = 4; length <= 12; length++) {
     const config = configFor({ mode, length, attempts: 15 });
     const game = complete(config);
     const text = decoded(game, config);
@@ -76,14 +76,14 @@ test('duet blocks stop independently when each board is solved', () => {
   assert.ok(text.includes('Eigene Wörter'));
 });
 
-test('a maximum-size unsolved board preserves all fifteen eight-tile rows', () => {
-  const config = createCustomConfig({ words: ['HANDTUCH'], attempts: 15 });
+test('a maximum-size unsolved board preserves all fifteen twelve-tile rows', () => {
+  const config = createCustomConfig({ words: ['BLUMENSTRAUẞ'], attempts: 15 });
   // Formatting consumes engine-validated game state; the repeated fixture isolates
   // the largest supported grid without coupling this test to dictionary entries.
-  const game = complete(config, Array(15).fill('AAAAAAAA'));
+  const game = complete(config, Array(15).fill('ABCDEFGHIJKL'));
   const [grid] = blocks(decoded(game, config));
   assert.equal(grid.length, 15);
-  assert.ok(grid.every(row => [...segmenter.segment(row)].length === 8));
+  assert.ok(grid.every(row => [...segmenter.segment(row)].length === 12));
   assert.ok(decoded(game, config).includes('X/15'));
 });
 
@@ -158,10 +158,10 @@ function assertDrawingInside(canvas, records) {
   }
 }
 
-test('PNG renderer requests PNG encoding and gives every tile room in a maximum 15×8 duet', async t => {
+test('PNG renderer requests PNG encoding and gives every tile room in a maximum 15×12 duet', async t => {
   const capture = recordCanvas(t);
-  const config = createCustomConfig({ words: ['HANDTUCH', 'GESCHENK'], mode: 'duet', attempts: 15 });
-  const guesses = ['BADEHOSE', 'BACKOFEN', 'BAUMHAUS', 'BÜCHEREI', 'COMPUTER', 'DIENSTAG', 'EIDECHSE', 'EINDRUCK', 'EINGRIFF', 'ERDBEERE', 'FAHRBAHN', 'FAHRGAST', 'FLUGZEUG', 'HALSTUCH', 'HAUSHALT'];
+  const config = createCustomConfig({ words: ['BLUMENSTRAUẞ', 'SONNENSCHIRM'], mode: 'duet', attempts: 15 });
+  const guesses = Array.from({length:15}, (_,i) => String.fromCharCode(65+i).repeat(12));
   const game = complete(config, guesses);
   const secret = 'do-not-draw-this-secret';
   const longBase = `https://example.github.io/${'long-project-path-'.repeat(12)}/?private=${secret}#${secret}`;
@@ -170,8 +170,8 @@ test('PNG renderer requests PNG encoding and gives every tile room in a maximum 
   assert.equal(blob.type, 'image/png');
   assert.deepEqual(capture.records.encodings, ['image/png']);
   assert.equal(capture.canvas.width, 1080);
-  assert.ok(capture.canvas.height > 3000, 'height grows to hold both long boards');
-  assert.equal(capture.tiles().length, 2 * 15 * 8);
+  assert.ok(capture.canvas.height > 2500, 'height grows to hold both long boards');
+  assert.equal(capture.tiles().length, 2 * 15 * 12);
   assertDrawingInside(capture.canvas, capture.records);
   const drawn = capture.records.text.map(text => text.value);
   for (const word of [...guesses, ...config.customTargets, secret]) assert.ok(!drawn.some(text => text.includes(word)), `does not draw ${word}`);
@@ -191,7 +191,7 @@ test('PNG renderer requests PNG encoding and gives every tile room in a maximum 
   }
   assert.equal(rows.size, 30);
   for (const row of rows.values()) {
-    assert.equal(row.length, 8);
+    assert.equal(row.length, 12);
     row.sort((a, b) => a.x - b.x);
     for (let i = 1; i < row.length; i++) assert.ok(row[i - 1].x + row[i - 1].width < row[i].x, 'square tiles do not overlap');
   }

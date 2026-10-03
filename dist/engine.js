@@ -6,6 +6,10 @@ export const SPRINT_MS = 120_000;
 export const normalizeWord = value => String(value).normalize('NFC').replace(/ß/g, 'ẞ').toLocaleUpperCase('de-DE');
 export const normalizeSeed = value => normalizeWord(value).trim().replace(/\s+/g, '-');
 const alphabet = /^[A-ZÄÖÜẞ]+$/;
+const MAX_WORD_LENGTH=12;
+// Two 12-tile targets can use three UTF-8 bytes per tile, plus one separator.
+const MAX_CUSTOM_PAYLOAD_LENGTH=Math.ceil((2*MAX_WORD_LENGTH*3+1)*4/3);
+const MAX_CODE_LENGTH=160;
 const accepted = new Set([...Object.values(SOLUTIONS).flat(), ...EXTRA_GUESSES]);
 let externalWordValidator=null;
 export function setWordValidator(validator) { externalWordValidator=validator; }
@@ -21,12 +25,12 @@ export function attemptOptions(mode) {
   return Array.from({length:16-min},(_,i)=>min+i);
 }
 export function validateConfig(c) {
-  if (!c || ![VERSION,CUSTOM_VERSION].includes(c.version) || !Object.hasOwn(MODES,c.mode) || !Number.isInteger(c.length) || c.length<4 || c.length>8 || !Number.isInteger(c.attempts) || c.attempts<(c.mode==='duet'?2:1) || c.attempts>15 || typeof c.hard!=='boolean' || typeof c.daily!=='boolean' || typeof c.seed!=='string' || !/^[A-Z0-9ÄÖÜẞ-]{1,32}$/.test(c.seed)) throw new Error('Dieser Spiel-Link ist ungültig oder gehört zu einer anderen Version.');
+  if (!c || ![VERSION,CUSTOM_VERSION].includes(c.version) || !Object.hasOwn(MODES,c.mode) || !Number.isInteger(c.length) || c.length<4 || c.length>MAX_WORD_LENGTH || !Number.isInteger(c.attempts) || c.attempts<(c.mode==='duet'?2:1) || c.attempts>15 || typeof c.hard!=='boolean' || typeof c.daily!=='boolean' || typeof c.seed!=='string' || !/^[A-Z0-9ÄÖÜẞ-]{1,32}$/.test(c.seed)) throw new Error('Dieser Spiel-Link ist ungültig oder gehört zu einer anderen Version.');
   if (c.mode==='duet' && c.hard) throw new Error('Diese Spielregeln passen nicht zusammen.');
   if (c.daily && (!/^\d{4}-\d{2}-\d{2}$/.test(c.seed) || !Number.isFinite(Date.parse(c.seed)) || new Date(c.seed).toISOString().slice(0,10)!==c.seed)) throw new Error('Das Datum in diesem Spiel-Link ist ungültig.');
   const clean={ version:c.version, mode:c.mode, length:c.length, attempts:c.attempts, hard:c.hard, daily:c.daily, seed:c.seed };
   if(c.version===CUSTOM_VERSION){
-    if(c.daily || !Array.isArray(c.customTargets) || c.customTargets.length!==(c.mode==='duet'?2:1) || c.customTargets.some(w=>typeof w!=='string'||w.length!==c.length||!alphabet.test(w)||normalizeWord(w)!==w) || new Set(c.customTargets).size!==c.customTargets.length) throw new Error('Eigene Wörter müssen 4–8 Buchstaben haben und im Doppelpack verschieden und gleich lang sein.');
+    if(c.daily || !Array.isArray(c.customTargets) || c.customTargets.length!==(c.mode==='duet'?2:1) || c.customTargets.some(w=>typeof w!=='string'||w.length!==c.length||!alphabet.test(w)||normalizeWord(w)!==w) || new Set(c.customTargets).size!==c.customTargets.length) throw new Error('Eigene Wörter müssen 4–12 Buchstaben haben und im Doppelpack verschieden und gleich lang sein.');
     clean.customTargets=[...c.customTargets];
   }
   return clean;
@@ -39,7 +43,7 @@ export function createCustomConfig({mode='classic',attempts=6,hard=false,seed='E
     const label=mode==='duet'?`Wort ${i+1}`:'Dein Wort';
     if(!word.length) throw new Error(mode==='duet'?`Bitte gib Wort ${i+1} ein.`:'Bitte gib ein eigenes Wort ein.');
     if(!alphabet.test(word)) throw new Error(`${label} darf nur Buchstaben enthalten (A–Z, Ä, Ö, Ü und ẞ).`);
-    if(word.length<4||word.length>8) throw new Error(`${label} braucht 4–8 Buchstaben.`);
+    if(word.length<4||word.length>MAX_WORD_LENGTH) throw new Error(`${label} braucht 4–12 Buchstaben.`);
   });
   return validateConfig({version:CUSTOM_VERSION,mode,length:customTargets[0]?.length,attempts,hard,daily:false,seed:normalizeSeed(seed),customTargets});
 }
@@ -49,7 +53,7 @@ function encodeTargets(targets) {
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
 function decodeTargets(payload) {
-  if(typeof payload!=='string'||payload.length>66||!/^[A-Za-z0-9_-]+$/.test(payload)) throw new Error('Die eigenen Wörter in diesem Spiel-Link sind ungültig.');
+  if(typeof payload!=='string'||payload.length>MAX_CUSTOM_PAYLOAD_LENGTH||!/^[A-Za-z0-9_-]+$/.test(payload)) throw new Error('Die eigenen Wörter in diesem Spiel-Link sind ungültig.');
   try{
     const binary=atob(payload.replace(/-/g,'+').replace(/_/g,'/'));
     const text=new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(binary,c=>c.charCodeAt(0)));
@@ -64,7 +68,7 @@ export function codeFor(config) {
   return [c.version,c.mode,c.length,c.attempts,Number(c.hard),c.daily?'d':'f',c.seed].join('~');
 }
 export function parseCode(code) {
-  if (typeof code!=='string'||code.length>120) throw new Error('Dieser Spiel-Link ist zu lang.');
+  if (typeof code!=='string'||code.length>MAX_CODE_LENGTH) throw new Error('Dieser Spiel-Link ist zu lang.');
   const a=code.split('~');
   if(a[0]===String(CUSTOM_VERSION)){
     if(a.length!==8||!['0','1'].includes(a[4])||a[5]!=='w') throw new Error('Dieser Spiel-Link ist ungültig.');
