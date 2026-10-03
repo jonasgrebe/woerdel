@@ -54,7 +54,7 @@ Der Ordner `dist/` ist die vollständige veröffentlichbare Website. Relative Da
 2. Unter **Settings → Pages → Build and deployment** die Quelle **GitHub Actions** auswählen.
 3. Auf `main` pushen oder den mitgelieferten Workflow manuell ausführen.
 
-Der Workflow prüft die Spielregeln, lädt ausschließlich `dist/` hoch und veröffentlicht anschließend. Jeder Push auf `main` aktualisiert die Website automatisch. Grundlage: [offizielle GitHub-Pages-Dokumentation](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
+Der Workflow prüft die Spielregeln, versioniert die Browser-Dateien gemeinsam anhand ihres Inhalts, lädt ausschließlich `dist/` hoch und veröffentlicht anschließend. So lädt der Browser beim Aktualisieren zusammengehörige JavaScript-Module und Styles. Jeder Push auf `main` aktualisiert die Website automatisch. Grundlage: [offizielle GitHub-Pages-Dokumentation](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
 
 **Lokale Links sind nur auf dem eigenen Rechner erreichbar.** Sobald die Website online ist, enthalten neu kopierte Spiel- und Ergebnislinks automatisch ihre öffentliche Adresse. Ältere lokale Links behalten die lokale Adresse; der Seed-Code ist dennoch identisch.
 
